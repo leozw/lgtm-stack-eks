@@ -8,8 +8,8 @@ resource "null_resource" "helmfile_update" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command = <<-EOT
-    ACCOUNT_ID=$(terraform output -raw aws_caller_identity_account_id)
-    AWS_REGION=$(terraform output -raw aws_region_current_name)
+    ACCOUNT_ID=${data.aws_caller_identity.current.account_id}
+    AWS_REGION=${data.aws_region.current.name}
     IAM_LOKI_ARN=$(terraform output -raw iam_loki_arn)
     IAM_MIMIR_ARN=$(terraform output -raw iam_mimir_arn)
     IAM_TEMPO_ARN=$(terraform output -raw iam_tempo_arn)
@@ -36,12 +36,9 @@ resource "null_resource" "helmfile_update" {
   }
 
   depends_on = [
-    module.s3_loki,
+    module.s3,
     module.iam_tempo,
     module.iam_loki,
-    module.s3_tempo,
-    module.s3_mimir,
-    module.s3_mimir_ruler,
     module.iam_mimir
   ]
 }

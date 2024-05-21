@@ -1,30 +1,10 @@
 locals {
-  environment = "prd"
+  environment = "stg"
 
-  retention_rules = {
-    loki = {
-      "dev"  = 1
-      "qa"   = 1
-      "pprd" = 1
-      "prd"  = null
-    }
-    mimir = {
-      "dev"  = 7
-      "qa"   = 14
-      "pprd" = 30
-      "prd"  = 90
-    }
-    tempo = {
-      "dev"  = 3
-      "qa"   = 3
-      "pprd" = 7
-      "prd"  = 7
-    }
-  }
-
-  lifecycle_rules = {
-    loki = {
-      rule_id = "jobs/cachePath-${local.environment}-loki"
+  s3 = [
+    {
+      name    = "eks-lgtm-mimir-${local.environment}-"
+      rule_id = "jobs/cachePath-${local.environment}-mimir"
       filter = {
         "prefix" = {
           "prefix" = ""
@@ -32,7 +12,7 @@ locals {
       }
       expiration = {
         "days" = {
-          "days" = local.retention_rules.loki[local.environment]
+          "days" = 1
         }
       }
       abort_incomplete_multipart_upload = {
@@ -46,9 +26,11 @@ locals {
         }
       }
       status_lifecycle = local.environment == "prd" ? "Disabled" : "Enabled"
-    }
-    mimir = {
-      rule_id = "jobs/cachePath-${local.environment}-mimir"
+      service          = "mimir"
+    },
+    {
+      name    = "eks-lgtm-mimir-ruler-${local.environment}-"
+      rule_id = "jobs/cachePath-${local.environment}-mimir-ruler"
       filter = {
         "prefix" = {
           "prefix" = ""
@@ -56,7 +38,7 @@ locals {
       }
       expiration = {
         "days" = {
-          "days" = local.retention_rules.mimir[local.environment]
+          "days" = 1
         }
       }
       abort_incomplete_multipart_upload = {
@@ -69,9 +51,11 @@ locals {
           "noncurrent_days" = 1
         }
       }
-      status_lifecycle = "Enabled"
-    }
-    tempo = {
+      status_lifecycle = local.environment == "prd" ? "Disabled" : "Enabled"
+      service          = "mimir-ruler"
+    },
+    {
+      name    = "eks-lgtm-tempo-${local.environment}-"
       rule_id = "jobs/cachePath-${local.environment}-tempo"
       filter = {
         "prefix" = {
@@ -80,7 +64,7 @@ locals {
       }
       expiration = {
         "days" = {
-          "days" = local.retention_rules.tempo[local.environment]
+          "days" = 1
         }
       }
       abort_incomplete_multipart_upload = {
@@ -93,11 +77,37 @@ locals {
           "noncurrent_days" = 1
         }
       }
-      status_lifecycle = "Enabled"
+      status_lifecycle = local.environment == "prd" ? "Disabled" : "Enabled"
+      service          = "tempo"
+    },
+    {
+      name    = "eks-lgtm-loki-${local.environment}-"
+      rule_id = "jobs/cachePath-${local.environment}-loki"
+      filter = {
+        "prefix" = {
+          "prefix" = ""
+        }
+      }
+      expiration = {
+        "days" = {
+          "days" = 1
+        }
+      }
+      abort_incomplete_multipart_upload = {
+        "days_after_initiation" = {
+          "days_after_initiation" = 1
+        }
+      }
+      noncurrent_version_expiration = {
+        "noncurrent_days" = {
+          "noncurrent_days" = 1
+        }
+      }
+      status_lifecycle = local.environment == "prd" ? "Disabled" : "Enabled"
+      service          = "loki"
     }
-  }
-}
-locals {
+  ]
+
   policy_arn_mimir = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -105,8 +115,8 @@ locals {
         Effect = "Allow",
         Action = ["s3:ListBucket", "s3:GetBucketLocation"],
         Resource = [
-          "${module.s3_mimir_ruler.bucket-arn}",
-          "${module.s3_mimir.bucket-arn}"
+          "${[for v in module.s3 : v.bucket-arn][1]}",
+          "${[for v in module.s3 : v.bucket-arn][2]}"
         ],
       },
       {
@@ -119,8 +129,8 @@ locals {
           "s3:AbortMultipartUpload",
         ],
         Resource = [
-          "${module.s3_mimir_ruler.bucket-arn}/*",
-          "${module.s3_mimir.bucket-arn}/*"
+          "${[for v in module.s3 : v.bucket-arn][1]}/*",
+          "${[for v in module.s3 : v.bucket-arn][2]}/*"
         ],
       },
     ],
@@ -132,7 +142,7 @@ locals {
         Effect = "Allow",
         Action = ["s3:ListBucket", "s3:GetBucketLocation"],
         Resource = [
-          "${module.s3_tempo.bucket-arn}"
+          "${[for v in module.s3 : v.bucket-arn][3]}"
         ],
       },
       {
@@ -145,7 +155,7 @@ locals {
           "s3:AbortMultipartUpload",
         ],
         Resource = [
-          "${module.s3_tempo.bucket-arn}/*"
+          "${[for v in module.s3 : v.bucket-arn][3]}/*"
         ],
       },
     ],
@@ -158,7 +168,7 @@ locals {
         Effect = "Allow",
         Action = ["s3:ListBucket", "s3:GetBucketLocation"],
         Resource = [
-          "${module.s3_loki.bucket-arn}"
+          "${[for v in module.s3 : v.bucket-arn][3]}"
         ],
       },
       {
@@ -171,7 +181,7 @@ locals {
           "s3:AbortMultipartUpload",
         ],
         Resource = [
-          "${module.s3_loki.bucket-arn}/*"
+          "${[for v in module.s3 : v.bucket-arn][3]}/*"
         ],
       },
     ],
