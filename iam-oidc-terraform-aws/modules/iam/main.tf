@@ -34,9 +34,9 @@ resource "aws_iam_role" "this" {
 resource "aws_iam_role_policy" "this" {
   for_each = var.iam_roles
 
-  name = each.key
-  role = aws_iam_role.this[each.key].id
-
+  name   = each.key
+  role   = aws_iam_role.this[each.key].id
   policy = each.value.policy
-
 }
+
+

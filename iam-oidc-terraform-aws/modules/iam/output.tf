@@ -1,4 +1,4 @@
 output "arn" {
-  description = "Output iam id"
+  description = "Output IAM role ARNs"
   value       = [for v in aws_iam_role.this : v.arn]
 }
